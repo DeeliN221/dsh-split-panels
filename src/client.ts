@@ -77,7 +77,7 @@ window.__ModuleLoader__.load({
     // ---------------------------------------------------------------------
 
     const PLUGIN_ID = "dsh-split-panels";
-    const PLUGIN_VERSION = "2026.11.15-1";
+    const PLUGIN_VERSION = "2026.11.15-2";
 
     /** Split panes are a desktop-only affordance. Phones (and narrow touch
         viewports) keep the stock single-conversation UI: the plugin stays
@@ -4860,21 +4860,28 @@ window.__ModuleLoader__.load({
     function clearEntryInjectCache() {
       entryInjectCache = new WeakMap();
     }
-    /** The pane-header variant of an entry's injected face. Some header
-        controls ask the HOST "is the session this chip was drawn for still the
-        one on screen?" before they act (`isCurrent`), and silently drop the
-        click otherwise — dsh-better-sidebar's context-diagnostics chip
-        re-checks `sidebarRight.mounted` this way, so in split view it rendered
-        correctly in every pane and did nothing: a pane is never the host's
-        mounted seat. A chip drawn into a pane's own header row was registered
-        for THAT pane's session by construction, so for the surface it appears
-        in the answer is yes. Only function-valued guards are replaced (some
-        plugins carry a boolean `isCurrent` value), and the original face is
-        left untouched so non-header renders keep stock semantics. */
-    function paneHeaderFace(face) {
-      if (face === null || face === undefined || typeof face !== "object") return face;
-      if (typeof face.isCurrent !== "function") return face;
-      return { ...face, isCurrent: () => true };
+    /** Header entries that belong to the HOST CHROME only, never to a pane.
+        dsh-better-sidebar draws two controls into the session header's
+        utilities row: the context-diagnostics chip (navigates the main view and
+        opens a tab in the native right column) and the bottom-workbench toggle.
+        Neither has any meaning inside a pane — the first cannot identify its
+        session as "the one on screen" (a pane never is the host's mounted
+        seat, so its click was silently dropped) and the second opens a dock
+        that the split overlay covers. The plugin's own contract says those
+        controls live in the right column, so panes omit them instead of
+        rendering dead buttons. */
+    function hostOnlyHeaderEntry(options) {
+      if (options === null || options === undefined) return false;
+      const registrant = typeof options.registrant === "string" ? options.registrant : "";
+      const id = typeof options.id === "string" ? options.id : "";
+      return registrant === "dsh-better-sidebar" || id.indexOf("dsh-better-sidebar:") === 0;
+    }
+    /** True when this render position is a pane's own header row and the entry
+        belongs to host chrome only: such an entry is omitted instead of being
+        rendered as a dead control (see hostOnlyHeaderEntry). */
+    function paneHeaderOmits(options, entryOptions) {
+      if (options === undefined || options === null || options.paneHeader !== true) return false;
+      return hostOnlyHeaderEntry(entryOptions);
     }
     function cachedEntryInject(parts, sessionId, scopeKey, compute) {
       const raw = parts !== null && parts !== undefined ? parts.raw : null;
@@ -4908,7 +4915,7 @@ window.__ModuleLoader__.load({
           context bodies) rendered bare or not at all. Owner props still win.
           The result is CACHED per (entry record, session, scope): see
           cachedEntryInject. */
-      const entryInjectProps = (parts, options) => {
+      const entryInjectProps = (parts) => {
         const raw = parts.raw;
         const fn = raw !== null && raw !== undefined && typeof raw.inject === "function"
           ? raw.inject
@@ -4939,8 +4946,7 @@ window.__ModuleLoader__.load({
             return {};
           }
         });
-        if (options === undefined || options === null || options.paneHeader !== true) return face;
-        return paneHeaderFace(face);
+        return face;
       };
       /** The slot-level half of one render, in the renderer's own order:
           kit first, then the entry inject, then the slot's static injected
@@ -5002,10 +5008,10 @@ window.__ModuleLoader__.load({
         } else {
           picked = entryParts(entries[0]);
         }
-        if (picked === null) {
+        if (picked === null || paneHeaderOmits(options, picked.options)) {
           return options !== undefined && options !== null && options.fallback !== undefined ? options.fallback : null;
         }
-        const props = merge(merge(merge({ ...kit }, entryInjectProps(picked, options)), entryStoreProps(picked, sessionId, scopeKey)), owner);
+        const props = merge(merge(merge({ ...kit }, entryInjectProps(picked)), entryStoreProps(picked, sessionId, scopeKey)), owner);
         if (!slotShare(name, props, options)) {
           return options !== undefined && options !== null && options.fallback !== undefined ? options.fallback : null;
         }
@@ -5039,7 +5045,7 @@ window.__ModuleLoader__.load({
         const out = [];
         for (const entry of entries) {
           const parts = entryParts(entry);
-          if (parts === null) continue;
+          if (parts === null || paneHeaderOmits(options, parts.options)) continue;
           const select = entry.select !== undefined ? entry.select : parts.options.select;
           let matched = null;
           try {
@@ -5048,7 +5054,7 @@ window.__ModuleLoader__.load({
             matched = null;
           }
           if (matched === null || matched === undefined) continue;
-          const props = merge(merge(merge({ ...kit }, entryInjectProps(parts, options)), entryStoreProps(parts, sessionId, scopeKey)), owner);
+          const props = merge(merge(merge({ ...kit }, entryInjectProps(parts)), entryStoreProps(parts, sessionId, scopeKey)), owner);
           if (!slotShare(name, props, options)) continue;
           props.matched = matched;
           props.renderSlot = renderSlot;
@@ -5066,8 +5072,8 @@ window.__ModuleLoader__.load({
         const out = [];
         for (const entry of entries) {
           const parts = entryParts(entry);
-          if (parts === null) continue;
-          const props = merge(merge(merge({ ...kit }, entryInjectProps(parts, options)), entryStoreProps(parts, sessionId, scopeKey)), extraProps);
+          if (parts === null || paneHeaderOmits(options, parts.options)) continue;
+          const props = merge(merge(merge({ ...kit }, entryInjectProps(parts)), entryStoreProps(parts, sessionId, scopeKey)), extraProps);
           if (!slotShare(name, props, options)) continue;
           // Stock-outlet parity: every entry the outlet renders also gets the
           // render dispatchers, list-kind rows included. Deliverables
@@ -7047,6 +7053,38 @@ window.__ModuleLoader__.load({
       return fallbackId !== null && fallbackId !== undefined && String(fallbackId) !== "" ? String(fallbackId) : "?";
     }
 
+    /** Views a pane's tab row never offers. `trajectory` is the stock
+        step-by-step inspector: it duplicates the transcript a pane already
+        shows and its wide, column-heavy table is unusable at a third of the
+        window, so panes keep it out of the tab row (the stock page still has
+        it). */
+    const PANE_TAB_HIDDEN = new Set(["trajectory"]);
+    /** Views pinned to the END of the pane's tab row: the persona editor
+        belongs to session configuration, not to the reading flow, so it sits
+        right of the conversation views (对话 / 上下文 / 编队 … 人设). */
+    const PANE_TAB_LAST = new Set(["agent-persona"]);
+
+    /** Tab roster for a pane, as the row draws it: the chat view first, then the
+        remaining views in their registered order, then the pinned-last ones.
+        Hidden views are dropped here — a pane's roster is a policy, not the raw
+        ledger. */
+    function paneTabsOf(entries) {
+      const rows = [];
+      for (const ve of entries) {
+        const id = ve.id === null || ve.id === undefined ? "" : String(ve.id);
+        if (id === "" || PANE_TAB_HIDDEN.has(id)) continue;
+        let order = 0;
+        try {
+          const raw = ve.parts.options !== null && ve.parts.options !== undefined ? ve.parts.options.order : undefined;
+          if (typeof raw === "number" && Number.isFinite(raw)) order = raw;
+        } catch { order = 0; }
+        rows.push({ id, order, label: viewTabLabel(ve.parts, ve.id) });
+      }
+      const rank = (row) => (row.id === "chat" ? 0 : PANE_TAB_LAST.has(row.id) ? 2 : 1);
+      rows.sort((a, b) => rank(a) - rank(b) || a.order - b.order || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+      return rows;
+    }
+
     /** The stock session header's VIEW row, re-hosted per pane: 对话 / 轨迹 /
         上下文 / 舰队 … A pane replaces the stock header with its own chrome, so
         without this row every view a plugin contributes through
@@ -7060,8 +7098,8 @@ window.__ModuleLoader__.load({
       // change this component's hook count between renders.
       const currentView = prepared.store.useStore((s) => (s !== null && s !== undefined ? s.view : null));
       const entries = prepared.viewEntries;
-      if (entries.length <= 1) return null;
-      const tabs = entries.map((ve) => ({ id: ve.id, label: viewTabLabel(ve.parts, ve.id) }));
+      const tabs = paneTabsOf(entries);
+      if (tabs.length <= 1) return null;
       return h("div", { className: "dsv-view-tabs", role: "tablist", "aria-label": t("paneViews") },
         tabs.map((tab) => {
           const active = currentView === tab.id || (currentView === null && tab.id === "chat");
@@ -7076,6 +7114,21 @@ window.__ModuleLoader__.load({
           }, tab.label);
         }),
       );
+    }
+
+    /** The composer (and the blank-session preset row) renders under the CHAT
+        view only. The other views a pane offers — 上下文 / 编队 / 人设 — own their
+        whole area; parking a chat input box under a dashboard put an affordance
+        on the page that could not apply to what was above it. `keep` is the one
+        exception: an elected composer-chain entry (pending question / approval /
+        plan review) must stay reachable from every view, or the turn would sit
+        blocked behind a card nobody can see. Hooks run unconditionally; only the
+        subtree is gated. */
+    function ChatViewSeat({ prepared, keep, hero, composer }) {
+      const view = prepared.store.useStore((s) => (s !== null && s !== undefined ? s.view : null));
+      const chatView = view === null || view === undefined || view === "chat";
+      if (!chatView && keep !== true) return null;
+      return h(React.Fragment, null, hero, composer);
     }
 
     /** Compact status chips for a pane header. These are the SAME slot entries
@@ -7486,6 +7539,10 @@ window.__ModuleLoader__.load({
               ? h(TuiMachineComposer, { prepared, running, toggle: toggleNode, useSession })
               : h(TuiPlainComposer, { sessionId, session, running, toggle: toggleNode, useSession }))
           : composerBar);
+      // A chain entry owning the composer (a pending question / approval /
+      // plan review) must reach the user from ANY view: gating it away would
+      // leave the turn blocked behind an invisible card.
+      const composerOwned = composer !== composerBar;
       // Last-resort Ctrl/Cmd+Enter for the re-hosted native editor. The send
       // chord is run by a keymap registered on the SHARED per-session Lexical
       // editor — the hidden stock page registers the same keymap for the same
@@ -7580,8 +7637,7 @@ window.__ModuleLoader__.load({
         viewTabs,
         header,
         transcript,
-        heroRow,
-        composerNode,
+        h(ChatViewSeat, { prepared, keep: composerOwned, hero: heroRow, composer: composerNode }),
       );
     }
 
