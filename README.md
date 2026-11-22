@@ -1,6 +1,6 @@
 # dsh-split-panels
 
-仓库：[DeeliN221/dsh-split-panels](https://github.com/DeeliN221/dsh-split-panels) · 安装：`dsh plugin --profile web add ./dsh-split-panels-1.0.0.tgz`（Release 产物）。
+仓库：[DeeliN221/dsh-split-panels](https://github.com/DeeliN221/dsh-split-panels) · 安装：`dsh plugin --profile web add ./dsh-split-panels-1.0.1.tgz`（Release 产物）。
 
 [![Release](https://github.com/DeeliN221/dsh-split-panels/actions/workflows/release.yml/badge.svg)](https://github.com/DeeliN221/dsh-split-panels/actions/workflows/release.yml)
 [![CI](https://github.com/DeeliN221/dsh-split-panels/actions/workflows/ci.yml/badge.svg)](https://github.com/DeeliN221/dsh-split-panels/actions/workflows/ci.yml)
@@ -174,7 +174,7 @@ flowchart LR
 
 ### 从 Release 安装（推荐）
 
-1. 到 [Releases](https://github.com/DeeliN221/dsh-split-panels/releases/latest) 下载 `dsh-split-panels-<version>.tgz` 与 `SHA256SUMS`（tag 为 `v<version>`，例如 `v1.0.0` ↔ `1.0.0`）。
+1. 到 [Releases](https://github.com/DeeliN221/dsh-split-panels/releases/latest) 下载 `dsh-split-panels-<version>.tgz` 与 `SHA256SUMS`（tag 为 `v<version>`，例如 `v1.0.1` ↔ `1.0.1`）。
 2. 校验并安装：
 
 ```sh
@@ -190,7 +190,7 @@ dsh plugin --profile web add ./dsh-split-panels-<version>.tgz
 dsh plugin --profile web add github:DeeliN221/dsh-split-panels
 ```
 
-固定版本：`github:DeeliN221/dsh-split-panels#v1.0.0`。
+固定版本：`github:DeeliN221/dsh-split-panels#v1.0.1`。
 
 ### 本地开发
 
@@ -243,20 +243,21 @@ pnpm version:check    # 校验 package.json 版本格式
 pnpm pack --pack-destination release   # 生成安装 tgz
 ```
 
-### 自动发版
+### 发版
 
 ```mermaid
 flowchart LR
-  T["每天 08:00（UTC+8）"] --> C{"自上个 release 以来<br/>有代码/文档变更？"}
-  C -- 否 --> S["跳过"]
-  C -- 是 --> V["分配 vYYYYMMDD-N"]
-  V --> B["typecheck / build / pack"]
-  B --> R["打 tag + GitHub Release<br/>上传 tgz 与 SHA256SUMS"]
+  T["push tag vX.Y.Z"] --> C{"tag 与 package.json<br/>版本一致？"}
+  C -- 否 --> F["失败：先改版本、重建 lib 再重打 tag"]
+  C -- 是 --> B["version:check / typecheck / build<br/>校验 lib 与源码一致"]
+  B --> P["pnpm pack → tgz + SHA256SUMS"]
+  P --> R["GitHub Release 上传 tgz 与 SHA256SUMS"]
 ```
 
-- 定时任务：`.github/workflows/release.yml`，每天 `08:00`（Asia/Shanghai，即 `00:00 UTC`）。
-- 版本号：tag 为 `vYYYYMMDD-N`（当天第 N 次，如 `v20261022-1`）；`package.json` 使用等价的严格 SemVer `YYYY.MM.DD-N`，保证 pnpm 可安装。
-- 无更新自动跳过；也可在 Actions 页手动 `Release → Run workflow`，勾选 `dry_run` 只验证不发版。
+- 只由 tag 触发：`.github/workflows/release.yml` 监听 `v<major>.<minor>.<patch>`，没有定时任务，也不会按日期生成版本号或改动 `package.json`。
+- 发版顺序：`node scripts/set-version.mjs 1.0.1`（同时写 `package.json` 与 `src/client.ts` 的 `PLUGIN_VERSION`）→ `pnpm build` 提交 `lib/` → PR 合并进 main → 在该 merge commit 上打 annotated tag `v1.0.1` 并 push。
+- tag 与 `package.json` 不一致时工作流在打包前失败，并提示需要先改版本，因此不会出现「标签版本 ≠ 包版本」的产物。
+- 只创建 GitHub Release 并上传产物，不执行 `npm publish`；`tag` 必须已经存在（`--verify-tag`）。
 - CI（`.github/workflows/ci.yml`）在 push / PR 上跑 typecheck + build + 产物一致性检查。
 
 ## 许可与致谢

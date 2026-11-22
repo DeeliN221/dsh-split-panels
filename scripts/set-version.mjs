@@ -7,12 +7,13 @@
  * - package.json `version`
  * - src/client.ts `PLUGIN_VERSION`
  *
- * Accepted forms:
- * - YYYY.MM.DD-N  strict SemVer used by release tags vYYYYMMDD-N
- * - legacy SemVer  x.y.z or x.y.z-pre (kept for older checkouts/CI)
+ * Only plain SemVer `x.y.z` is accepted. Releases are cut by pushing the
+ * matching annotated `vX.Y.Z` tag; `.github/workflows/release.yml` fails when
+ * the tag and package.json disagree, and there is no date-counter version any
+ * more.
  *
  * Usage:
- *   node scripts/set-version.mjs 2026.10.22-1
+ *   node scripts/set-version.mjs 1.0.1
  *   node scripts/set-version.mjs --check
  */
 import { readFileSync, writeFileSync } from 'node:fs'
@@ -24,18 +25,10 @@ const PACKAGE = join(ROOT, 'package.json')
 const CLIENT = join(ROOT, 'src/client.ts')
 const CLIENT_VERSION_RE = /(const PLUGIN_VERSION = ")([^"]*)(";)/
 
-const DATE_RE = /^(\d{4})\.(\d{2})\.(\d{2})-([1-9]\d*)$/
-const SEMVER_RE = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?$/
+const SEMVER_RE = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/
 
 function validate(version) {
-  const date = DATE_RE.exec(version)
-  if (date !== null) {
-    const month = Number(date[2])
-    const day = Number(date[3])
-    if (month < 1 || month > 12 || day < 1 || day > 31) throw new Error(`invalid calendar date in ${version}`)
-    return
-  }
-  if (!SEMVER_RE.test(version)) throw new Error(`expected YYYY.MM.DD-N (date-counter) or legacy SemVer, got ${version}`)
+  if (!SEMVER_RE.test(version)) throw new Error(`expected plain SemVer x.y.z, got ${version}`)
 }
 
 const check = process.argv.includes('--check')
