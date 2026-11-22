@@ -1,26 +1,24 @@
 name: Release
 
+# Tag-only release. Pushing an annotated tag v<major>.<minor>.<patch> is the
+# only trigger: there is no schedule, no date-counter version and no
+# "version bump commit" written back to main. package.json is the single
+# version source; the tag must already match it, otherwise the run fails
+# before anything is published.
 on:
-  schedule:
-    # 08:00 Asia/Shanghai (UTC+08:00) every day.
-    - cron: '0 0 * * *'
-  workflow_dispatch:
-    inputs:
-      dry_run:
-        description: '只验证与打包，不创建 tag / release'
-        type: boolean
-        default: false
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
-  group: release
+  group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  publish:
-    if: github.ref == 'refs/heads/main'
+  release:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -28,70 +26,60 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: main
           fetch-depth: 0
 
-      - name: Plan release (date counter, skip when nothing changed)
-        id: plan
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Resolve tag version and verify package.json
+        id: version
         run: |
-          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/releases?per_page=100" | jq 'add // []' > "$RUNNER_TEMP/releases.json"
-          node scripts/plan-release.mjs --releases "$RUNNER_TEMP/releases.json"
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          if ! printf '%s' "$tag" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::tag '$tag' is not v<major>.<minor>.<patch>; this repo only releases plain SemVer tags."
+            exit 1
+          fi
+          tag_version="${tag#v}"
+          pkg_version="$(node -p "require('./package.json').version")"
+          echo "version=$tag_version" >> "$GITHUB_OUTPUT"
+          if [ "$tag_version" != "$pkg_version" ]; then
+            echo "::error::tag '$tag' does not match package.json version '$pkg_version'. Run 'pnpm version:set $tag_version', commit package.json + src/client.ts + rebuilt lib/, merge to main, then tag that merge commit."
+            exit 1
+          fi
+          echo "tag $tag matches package.json $pkg_version"
 
       - uses: pnpm/action-setup@v6
-        if: steps.plan.outputs.publish == 'true'
+
       - uses: actions/setup-node@v7
-        if: steps.plan.outputs.publish == 'true'
         with:
           node-version: 22
           cache: pnpm
 
-      - name: Verify and package the exact release candidate
-        if: steps.plan.outputs.publish == 'true'
+      - name: Verify and package
         run: |
+          set -euo pipefail
           pnpm install --frozen-lockfile
           pnpm version:check
           pnpm typecheck
-          # lib/ is shipped inside the tarball; it must match src/.
-          git diff --exit-code -- lib/
-          node scripts/set-version.mjs "${{ steps.plan.outputs.package_version }}"
-          # Rebuild lib/client.js with the stamped PLUGIN_VERSION so health()
-          # reports the release; the release commit carries the new build.
           pnpm build
+          # lib/ ships inside the tarball; the committed build must match src/.
+          git diff --exit-code -- lib/
           mkdir -p release
           pnpm pack --pack-destination release
-          cd release && sha256sum ./*.tgz > SHA256SUMS
+          cd release
+          sha256sum ./*.tgz > SHA256SUMS
+          sha256sum --check SHA256SUMS
+          ls -l
 
-      - name: Stamp a release-only commit
-        if: steps.plan.outputs.publish == 'true'
-        run: |
-          source_commit="$(git rev-parse HEAD)"
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add package.json src/client.ts lib
-          git -c core.hooksPath=/dev/null commit --allow-empty -m "chore(release): ${{ steps.plan.outputs.tag }}" -m "Source-Commit: $source_commit"
-          echo "RELEASE_SOURCE_COMMIT=$source_commit" >> "$GITHUB_ENV"
-
-      - name: Publish immutable release
-        if: steps.plan.outputs.publish == 'true' && inputs.dry_run != true
+      - name: Publish GitHub Release (no npm publish)
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ steps.plan.outputs.tag }}
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          cd release
-          sha256sum --check SHA256SUMS
-          # Tag the version-stamped commit; never push it to main and never
-          # rewrite a published tag.
-          git tag "$RELEASE_TAG"
-          git push origin "refs/tags/$RELEASE_TAG"
-          gh release create "$RELEASE_TAG" --verify-tag --draft --title "$RELEASE_TAG" --generate-notes \
-            --notes "安装：下载 dsh-split-panels-${{ steps.plan.outputs.package_version }}.tgz 与 SHA256SUMS，先 sha256sum --check SHA256SUMS，再执行 dsh plugin --profile web add ./dsh-split-panels-${{ steps.plan.outputs.package_version }}.tgz。Built from main commit $RELEASE_SOURCE_COMMIT."
-          gh release upload "$RELEASE_TAG" ./*.tgz SHA256SUMS
-          gh release edit "$RELEASE_TAG" --draft=false --prerelease=false --latest
-
-      - name: Summarize dry run
-        if: steps.plan.outputs.publish == 'true' && inputs.dry_run == true
-        run: |
-          echo "Dry run passed. No tag or release was created; the counter was not reserved." >> "$GITHUB_STEP_SUMMARY"
-          ls -la release >> "$GITHUB_STEP_SUMMARY"
+          set -euo pipefail
+          gh release create "$TAG" --verify-tag --draft --title "$TAG" --generate-notes \
+            release/*.tgz release/SHA256SUMS
+          install_note="安装：下载 dsh-split-panels-$VERSION.tgz 与 SHA256SUMS，先 sha256sum --check SHA256SUMS，再执行 dsh plugin --profile web add ./dsh-split-panels-$VERSION.tgz。Built from tag $TAG on commit $GITHUB_SHA；本工作流只创建 GitHub Release，不发布到 npm。"
+          generated="$(gh release view "$TAG" --json body --jq .body)"
+          notes="$(printf '%s\n\n%s\n' "$install_note" "$generated")"
+          gh release edit "$TAG" --notes "$notes" --draft=false --prerelease=false --latest
+          gh release view "$TAG" --json tagName,isDraft,isPrerelease,assets --jq '{tag:.tagName,draft:.isDraft,prerelease:.isPrerelease,assets:[.assets[].name]}' | tee -a "$GITHUB_STEP_SUMMARY"
