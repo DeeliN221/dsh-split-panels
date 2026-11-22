@@ -1,6 +1,6 @@
 {
   "name": "dsh-split-panels",
-  "version": "2026.11.15-2",
+  "version": "2026.11.20-1",
   "private": false,
   "description": "DSH Web 增强插件：对话区 3 列网格分屏（最多 6 栏，纵向追加）+ 右侧文档预览导出 PDF。",
   "type": "module",
@@ -27,13 +27,14 @@
       "inject": [
         "@deepseek-ai/dsh-client-ui-layout",
         "@deepseek-ai/dsh-client-locale",
-        "@deepseek-ai/dsh-client-ui-primitives"
+        "@deepseek-ai/dsh-client-ui-primitives",
+        "@deepseek-ai/dsh-client-ui-workspace"
       ]
     }
   },
   "engines": {
     "node": ">=22.19",
-    "dsh": ">=0.2.0-rc.2 <0.3.0"
+    "dsh": ">=0.2.2-rc.1 <0.3.0"
   },
   "license": "GPL-3.0-only",
   "author": "HZWzzl",
@@ -61,6 +62,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json",
+    "test": "node --test reliability.test.mjs",
     "check": "pnpm typecheck && pnpm build && git diff --exit-code -- lib/",
     "version:set": "node scripts/set-version.mjs",
     "version:check": "node scripts/set-version.mjs --check",
