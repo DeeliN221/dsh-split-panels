@@ -1,6 +1,6 @@
 {
   "name": "dsh-split-panels",
-  "version": "2026.11.20-1",
+  "version": "1.0.0",
   "private": false,
   "description": "DSH Web 增强插件：对话区 3 列网格分屏（最多 6 栏，纵向追加）+ 右侧文档预览导出 PDF。",
   "type": "module",
@@ -14,6 +14,7 @@
     "lib/index.js",
     "lib/client.js",
     "cordis.patch.yml",
+    "icon.svg",
     "README.md",
     "LICENSE",
     "THIRD_PARTY_NOTICES.md"
@@ -30,7 +31,8 @@
         "@deepseek-ai/dsh-client-ui-primitives",
         "@deepseek-ai/dsh-client-ui-workspace"
       ]
-    }
+    },
+    "manifestVersion": 1
   },
   "engines": {
     "node": ">=22.19",
@@ -40,11 +42,11 @@
   "author": "HZWzzl",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/HZWzzl/dsh-split-panels.git"
+    "url": "git+https://github.com/DeeliN221/dsh-split-panels.git"
   },
-  "homepage": "https://github.com/HZWzzl/dsh-split-panels",
+  "homepage": "https://github.com/DeeliN221/dsh-split-panels#readme",
   "bugs": {
-    "url": "https://github.com/HZWzzl/dsh-split-panels/issues"
+    "url": "https://github.com/DeeliN221/dsh-split-panels/issues"
   },
   "keywords": [
     "deepseek-harness",
@@ -70,5 +72,10 @@
   },
   "devDependencies": {
     "typescript": "^5.9.3"
+  },
+  "icon": "./icon.svg",
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "~4.1.0",
+    "react": "^18.2.0"
   }
 }
