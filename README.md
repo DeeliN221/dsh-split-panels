@@ -1,7 +1,9 @@
 # dsh-split-panels
 
-[![Release](https://github.com/HZWzzl/dsh-split-panels/actions/workflows/release.yml/badge.svg)](https://github.com/HZWzzl/dsh-split-panels/actions/workflows/release.yml)
-[![CI](https://github.com/HZWzzl/dsh-split-panels/actions/workflows/ci.yml/badge.svg)](https://github.com/HZWzzl/dsh-split-panels/actions/workflows/ci.yml)
+仓库：[DeeliN221/dsh-split-panels](https://github.com/DeeliN221/dsh-split-panels) · 安装：`dsh plugin --profile web add ./dsh-split-panels-1.0.0.tgz`（Release 产物）。
+
+[![Release](https://github.com/DeeliN221/dsh-split-panels/actions/workflows/release.yml/badge.svg)](https://github.com/DeeliN221/dsh-split-panels/actions/workflows/release.yml)
+[![CI](https://github.com/DeeliN221/dsh-split-panels/actions/workflows/ci.yml/badge.svg)](https://github.com/DeeliN221/dsh-split-panels/actions/workflows/ci.yml)
 [![License: GPL-3.0-only](https://img.shields.io/badge/license-GPL--3.0--only-blue.svg)](LICENSE)
 
 **把 DeepSeek Harness 的对话区切成最多 6 栏的网格：固定 3 列，满了向下追加一行。侧栏和顶栏始终只有一份。**
@@ -172,12 +174,12 @@ flowchart LR
 
 ### 从 Release 安装（推荐）
 
-1. 到 [Releases](https://github.com/HZWzzl/dsh-split-panels/releases/latest) 下载 `dsh-split-panels-<YYYY.MM.DD-N>.tgz` 与 `SHA256SUMS`（tag 为 `v<YYYYMMDD-N>`，例如 `v20261022-1` ↔ `2026.10.22-1`）。
+1. 到 [Releases](https://github.com/DeeliN221/dsh-split-panels/releases/latest) 下载 `dsh-split-panels-<version>.tgz` 与 `SHA256SUMS`（tag 为 `v<version>`，例如 `v1.0.0` ↔ `1.0.0`）。
 2. 校验并安装：
 
 ```sh
 sha256sum -c SHA256SUMS --ignore-missing
-dsh plugin --profile web add ./dsh-split-panels-<YYYY.MM.DD-N>.tgz
+dsh plugin --profile web add ./dsh-split-panels-<version>.tgz
 ```
 
 3. 重启 `dsh web`，刷新页面。插件会自动加入 profile 的 `dsh.profile.bundles`。
@@ -185,15 +187,15 @@ dsh plugin --profile web add ./dsh-split-panels-<YYYY.MM.DD-N>.tgz
 ### 从 GitHub 源码安装
 
 ```sh
-dsh plugin --profile web add github:HZWzzl/dsh-split-panels
+dsh plugin --profile web add github:DeeliN221/dsh-split-panels
 ```
 
-固定版本：`github:HZWzzl/dsh-split-panels#v20261022-1`。
+固定版本：`github:DeeliN221/dsh-split-panels#v1.0.0`。
 
 ### 本地开发
 
 ```sh
-git clone https://github.com/HZWzzl/dsh-split-panels.git
+git clone https://github.com/DeeliN221/dsh-split-panels.git
 cd dsh-split-panels && pnpm install && pnpm build
 dsh plugin --profile web add link:$PWD
 ```

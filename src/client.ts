@@ -45,7 +45,7 @@ window.__ModuleLoader__.load({
     // ---------------------------------------------------------------------
 
     const PLUGIN_ID = "dsh-split-panels";
-    const PLUGIN_VERSION = "2026.11.20-1";
+    const PLUGIN_VERSION = "1.0.0";
 
     /** Split panes are a desktop-only affordance. Phones (and narrow touch
         viewports) keep the stock single-conversation UI: the plugin stays
